@@ -1,50 +1,91 @@
 import socket
+import queue
+import threading
+import time
+import sys
 
 
 HOST = socket.gethostbyname(socket.gethostname())
 PORT = 6542
 ADDR = (HOST, PORT)
 FORMAT = 'utf-8'
+HEADER_LENGTH = 10
+
+SEND_MESSAGE_QUEUE = queue.Queue()
+RECIVE_MESSAGE_QUEUE = queue.Queue()
+
+
+def addHeader(msg, format='utf-8', encoding=False):
+    msgLength = len(msg)
+    msgHeader = f'{len(msg):<{HEADER_LENGTH}}'
+    msgWithHeader = msgHeader + msg
+
+    if encoding:
+        return msgWithHeader.encode(FORMAT)
+
+    return msgWithHeader
+
+
+def sendMessage():
+    while True:
+        msg = SEND_MESSAGE_QUEUE.get()
+        conn.send(msg)
+        time.sleep(1)
+
+
+def inputMessage():
+    while True:
+        msg = input()
+        msgWithHeader = addHeader(msg, encoding=True)
+        SEND_MESSAGE_QUEUE.put(msgWithHeader)
+
+
+def printMessage():
+    while True:
+        Message = RECIVE_MESSAGE_QUEUE.get()
+        print(f'[CLIENT({addr[0]})]:', Message)
+        time.sleep(1)
+
+
+def recieveMessage():
+    fullMessage = ''
+    while True:
+        msg = conn.recv(43)
+        fullMessage += msg.decode(FORMAT)
+
+        while fullMessage != '':
+            msgLength = int(fullMessage[:HEADER_LENGTH])
+            chunkLength = HEADER_LENGTH + msgLength
+
+            if chunkLength > len(fullMessage):
+                break
+            else:
+                chunk = fullMessage[:chunkLength]
+                Message = chunk[HEADER_LENGTH:]
+                RECIVE_MESSAGE_QUEUE.put(Message)
+                fullMessage = fullMessage[chunkLength:]
+
+
 SERVER = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-
-def getPaddedLength(msg, format='utf-8'):
-    msgInBinary = msg.encode(FORMAT)
-    msgSize = sys.getsizeof(msgInBinary)
-    msgSizeString = str(msgSize)
-    requiredPaddingSize = HEADER - sys.getsizeof(''.encode(format)) - len(msgSizeString)
-    padding = ' '.encode(format) * requiredPaddingSize
-    msgSizePadded = padding + msgSizeString.encode(format)
-    return msgSizePadded
-    # it is already encoded
-
-
 SERVER.bind(ADDR)
 print(ADDR)
-# this means we will have a backlog of 5 unsuccessful connections
 SERVER.listen(5)
 print(f"[SERVER]: is listening at port: {PORT}")
 
+conn, addr = SERVER.accept()
+print(f"[CLIENT]: {addr[0]} is connected from port: {addr[1]}")
 
-while True:
-    conn, addr = SERVER.accept()
-    print(f"[CLIENT]: {addr[0]} is connected from port: {addr[1]}")
-    recievedMsgLength = conn.recv(1024)
-    bufferSize = int(recievedMsgLength)
-    # No need to decode it(if you want you can), because even if you decode it
-    # it will change its format from binary to string,but we can directly get integral value using int
+recieveMessageThread = threading.Thread(target=recieveMessage, daemon=True)
+sendMessageThread = threading.Thread(target=sendMessage, daemon=True)
+printMessageThread = threading.Thread(target=printMessage, daemon=True)
+inputMessageThread = threading.Thread(target=inputMessage, daemon=True)
 
-    # print(recievedMsgLength)
-    print(f'[SERVER]: recieving a message of {int(bufferSize)} bytes')
+recieveMessageThread.start()
+sendMessageThread.start()
+printMessageThread.start()
+inputMessageThread.start()
 
-    recievedMsg = conn.recv(bufferSize)
-    recievedMsg = recievedMsg.decode(FORMAT)
-    print(f"[CLIENT]: {recievedMsg}")
-
-    print("[SERVER]: echoing back...")
-
-    conn.send(recievedMsgLength)
-    conn.send(recievedMsg.encode(FORMAT))
-    print("[SERVER]: echoed")
-
-    conn.close()
+recieveMessageThread.join()
+sendMessageThread.join()
+printMessageThread.join()
+inputMessageThread.join()

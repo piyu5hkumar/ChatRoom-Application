@@ -1,35 +1,86 @@
 import socket
 import sys
+import threading
+import time
+import queue
+
 
 HOST = '127.0.1.1'
 PORT = 6542
 ADDR = (HOST, PORT)
 FORMAT = 'utf-8'
-HEADER = 1024
-SERVER = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+HEADER_LENGTH = 10
+
+SEND_MESSAGE_QUEUE = queue.Queue()
+RECIVE_MESSAGE_QUEUE = queue.Queue()
 
 
-def getPaddedLength(msg, format='utf-8'):
-    msgInBinary = msg.encode(FORMAT)
-    msgSize = sys.getsizeof(msgInBinary)
-    msgSizeString = str(msgSize)
-    requiredPaddingSize = HEADER - sys.getsizeof(''.encode(format)) - len(msgSizeString)
-    padding = ' '.encode(format) * requiredPaddingSize
-    msgSizePadded = padding + msgSizeString.encode(format)
-    return msgSizePadded
-    # it is already encoded
+def addHeader(msg, format='utf-8', encoding=False):
+    msgLength = len(msg)
+    msgHeader = f'{len(msg):<{HEADER_LENGTH}}'
+    msgWithHeader = msgHeader + msg
+
+    if encoding:
+        return msgWithHeader.encode(FORMAT)
+
+    return msgWithHeader
+
+
+def sendMessage():
+    while True:
+        msg = SEND_MESSAGE_QUEUE.get()
+        CLIENT.send(msg)
+        time.sleep(1)
+
+
+def inputMessage():
+    while True:
+        msg = input()
+        msgWithHeader = addHeader(msg, encoding=True)
+        SEND_MESSAGE_QUEUE.put(msgWithHeader)
+
+
+def printMessage():
+    while True:
+        Message = RECIVE_MESSAGE_QUEUE.get()
+        print('[SERVER]:', Message)
+        time.sleep(1)
+
+
+def recieveMessage():
+    fullMessage = ''
+    while True:
+        msg = CLIENT.recv(43)
+        fullMessage += msg.decode(FORMAT)
+
+        while fullMessage != '':
+            msgLength = int(fullMessage[:HEADER_LENGTH])
+            chunkLength = HEADER_LENGTH + msgLength
+
+            if chunkLength > len(fullMessage):
+                break
+            else:
+                chunk = fullMessage[:chunkLength]
+                Message = chunk[HEADER_LENGTH:]
+                RECIVE_MESSAGE_QUEUE.put(Message)
+                fullMessage = fullMessage[chunkLength:]
 
 
 CLIENT = socket.socket()
 
 CLIENT.connect(ADDR)
-msg = input()
-msgLength = getPaddedLength(msg)
-# print(msgLength)
-CLIENT.send(msgLength)
-CLIENT.send(msg.encode(FORMAT))
 
-recievedMsgLength = CLIENT.recv(1024)
-bufferSize = int(recievedMsgLength)
-recievedMsg = CLIENT.recv(bufferSize).decode(FORMAT)
-print(recievedMsg)
+recieveMessageThread = threading.Thread(target=recieveMessage, daemon=True)
+sendMessageThread = threading.Thread(target=sendMessage, daemon=True)
+printMessageThread = threading.Thread(target=printMessage, daemon=True)
+inputMessageThread = threading.Thread(target=inputMessage, daemon=True)
+
+recieveMessageThread.start()
+sendMessageThread.start()
+printMessageThread.start()
+inputMessageThread.start()
+
+recieveMessageThread.join()
+sendMessageThread.join()
+printMessageThread.join()
+inputMessageThread.join()
