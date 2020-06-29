@@ -4,15 +4,27 @@ import threading
 import time
 import sys
 
-
 HOST = socket.gethostbyname(socket.gethostname())
 PORT = 6542
 ADDR = (HOST, PORT)
 FORMAT = 'utf-8'
 HEADER_LENGTH = 10
 
-SEND_MESSAGE_QUEUE = queue.Queue()
-RECIVE_MESSAGE_QUEUE = queue.Queue()
+
+MESSAGE_QUEUE = queue.Queue()
+
+
+CLIENTS = []
+DISCONNECTED_CLIENTS = []
+USERS = {
+            'connected': '',
+            'disconnected': '',
+            'anonymous': '',
+            'anom': '',
+            'socket': '',
+            'administrator': '',
+            'admin': ''
+        }
 
 
 def addHeader(msg, format='utf-8', encoding=False):
@@ -26,66 +38,145 @@ def addHeader(msg, format='utf-8', encoding=False):
     return msgWithHeader
 
 
-def sendMessage():
-    while True:
-        msg = SEND_MESSAGE_QUEUE.get()
-        conn.send(msg)
-        time.sleep(1)
+class Client:
+    def __init__(self,connection, address):
+        self.connection = connection
+        self.address = address
+        self.userExists = False
+        self.userName = None
+        self.fullMessage = ''
+        self.connection.settimeout(1)
 
 
-def inputMessage():
-    while True:
-        msg = input()
-        msgWithHeader = addHeader(msg, encoding=True)
-        SEND_MESSAGE_QUEUE.put(msgWithHeader)
+    def inbox(self):
+        try:
+            msg = self.connection.recv(43)
+        except socket.timeout as e:
+            pass
+        except:
+            print('some error')
+        else:
+            if len(msg) != 0: 
+                self.fullMessage += msg.decode(FORMAT)
 
+                while self.fullMessage != '':
+                    msgLength = int(self.fullMessage[:HEADER_LENGTH])
+                    chunkLength = HEADER_LENGTH + msgLength
 
-def printMessage():
-    while True:
-        Message = RECIVE_MESSAGE_QUEUE.get()
-        print(f'[CLIENT({addr[0]})]:', Message)
-        time.sleep(1)
+                    if chunkLength > len(self.fullMessage):
+                        break
+                    else:
+                        chunk = self.fullMessage[:chunkLength]
+                        message = chunk[HEADER_LENGTH:]
 
-
-def recieveMessage():
-    fullMessage = ''
-    while True:
-        msg = conn.recv(43)
-        fullMessage += msg.decode(FORMAT)
-
-        while fullMessage != '':
-            msgLength = int(fullMessage[:HEADER_LENGTH])
-            chunkLength = HEADER_LENGTH + msgLength
-
-            if chunkLength > len(fullMessage):
-                break
+                        if self.userExists == False:
+                            if message not in USERS:
+                                self.userExists = True
+                                USERS[message] = self.address
+                                self.userName = message
+                            else:
+                                userError = 'Username not available'
+                                userError = addHeader(userError, encoding=True)
+                                self.connection.send(userError)
+                        else:
+                            userMessageTupple = (self.userName, message)
+                            MESSAGE_QUEUE.put(userMessageTupple)
+                        self.fullMessage = self.fullMessage[chunkLength:]
             else:
-                chunk = fullMessage[:chunkLength]
-                Message = chunk[HEADER_LENGTH:]
-                RECIVE_MESSAGE_QUEUE.put(Message)
-                fullMessage = fullMessage[chunkLength:]
+                print(f'{self.userName}: {self.address[0]} at PORT ({self.address[1]}) has been disconnected')
+                self.connection.close()
+                DISCONNECTED_CLIENTS.append(self)
 
 
-SERVER = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-SERVER.bind(ADDR)
-print(ADDR)
-SERVER.listen(5)
-print(f"[SERVER]: is listening at port: {PORT}")
+    def outbox(self, message):
 
-conn, addr = SERVER.accept()
-print(f"[CLIENT]: {addr[0]} is connected from port: {addr[1]}")
+        self.connection.send(message)
 
-recieveMessageThread = threading.Thread(target=recieveMessage, daemon=True)
-sendMessageThread = threading.Thread(target=sendMessage, daemon=True)
-printMessageThread = threading.Thread(target=printMessage, daemon=True)
-inputMessageThread = threading.Thread(target=inputMessage, daemon=True)
 
-recieveMessageThread.start()
-sendMessageThread.start()
-printMessageThread.start()
-inputMessageThread.start()
 
-recieveMessageThread.join()
-sendMessageThread.join()
-printMessageThread.join()
-inputMessageThread.join()
+
+
+class Server:
+    __instance = None
+
+    @staticmethod
+    def getInstance(addr):
+        if Server.__instance == None:
+            Server(addr)
+
+        return Server.__instance
+
+
+    def __init__(self, addr):
+        if Server.__instance != None:
+            raise Exception('A server is already there')
+        else:
+            self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.serverSocket.bind(addr)
+            self.serverSocket.listen(5)
+            print(f"[SERVER]: is listening at port: {addr[1]}")
+            Server.__instance = self
+
+
+    def acceptConnections(self):
+        while True:
+            connectionTupple = self.serverSocket.accept()
+            client = Client(*connectionTupple) 
+            print(f"[CLIENT]: {client.address[0]} is connected from port: {client.address[1]}")
+            CLIENTS.append(client)
+
+    def removeDisconnectedClients(self):
+        for disconnected_client in DISCONNECTED_CLIENTS:
+                try:
+                    CLIENTS.remove(disconnected_client)
+                    del disconnected_client
+                    
+                except ValueError as e:
+                    pass
+        
+        DISCONNECTED_CLIENTS.clear() 
+
+
+    def recieveMessages(self):
+        while True:
+
+            self.removeDisconnectedClients()
+            for client in CLIENTS:
+                status = client.inbox()
+                
+
+    def sendMessages(self):
+        while True:
+
+            userMessageTupple = MESSAGE_QUEUE.get()
+            msg = userMessageTupple[0] + ' > ' + userMessageTupple[1]
+            msgWithHeader = addHeader(msg, encoding=True)
+            
+            self.removeDisconnectedClients()            
+            for client in CLIENTS:
+                if client.userName != userMessageTupple[0]:
+                    client.outbox(msgWithHeader)
+            time.sleep(1)
+
+
+    def runThreads(self):
+        acceptConnectionsThread = threading.Thread(target=self.acceptConnections, daemon=True)
+        recieveMessagesThread = threading.Thread(target=self.recieveMessages, daemon=True)
+        sendMessagesThread = threading.Thread(target=self.sendMessages, daemon=True)
+
+        acceptConnectionsThread.start()
+        recieveMessagesThread.start()
+        sendMessagesThread.start()
+
+        acceptConnectionsThread.join()
+        recieveMessagesThread.join()
+        sendMessagesThread.join()
+
+
+
+        
+
+
+server = Server(ADDR)
+server.runThreads()
+
