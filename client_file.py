@@ -11,6 +11,7 @@ ADDR = (HOST, PORT)
 FORMAT = 'utf-8'
 HEADER_LENGTH = 10
 
+
 SEND_MESSAGE_QUEUE = queue.Queue()
 RECIVE_MESSAGE_QUEUE = queue.Queue()
 
@@ -26,61 +27,63 @@ def addHeader(msg, format='utf-8', encoding=False):
     return msgWithHeader
 
 
-def sendMessage():
-    while True:
-        msg = SEND_MESSAGE_QUEUE.get()
-        CLIENT.send(msg)
-        time.sleep(1)
+class Client:
+    def __init__(self, addr):
+        self.clientSocket = socket.socket()
+        self.clientSocket.connect(addr)
+
+    def sendMessage(self):
+        while True:
+            msg = SEND_MESSAGE_QUEUE.get()
+            self.clientSocket.send(msg)
+            time.sleep(1)
+
+    def inputMessage(self):
+        while True:
+            msg = input()
+            msgWithHeader = addHeader(msg, encoding=True)
+            SEND_MESSAGE_QUEUE.put(msgWithHeader)
+
+    def printMessage(self):
+        while True:
+            Message = RECIVE_MESSAGE_QUEUE.get()
+            print(Message)
+            time.sleep(1)
+
+    def recieveMessage(self):
+        fullMessage = ''
+        while True:
+            msg = self.clientSocket.recv(43)
+            fullMessage += msg.decode(FORMAT)
+
+            while fullMessage != '':
+                msgLength = int(fullMessage[:HEADER_LENGTH])
+                chunkLength = HEADER_LENGTH + msgLength
+
+                if chunkLength > len(fullMessage):
+                    break
+                else:
+                    chunk = fullMessage[:chunkLength]
+                    Message = chunk[HEADER_LENGTH:]
+                    RECIVE_MESSAGE_QUEUE.put(Message)
+                    fullMessage = fullMessage[chunkLength:]
+
+    def runThreads(self):
+        recieveMessageThread = threading.Thread(target=self.recieveMessage, daemon=True)
+        sendMessageThread = threading.Thread(target=self.sendMessage, daemon=True)
+        printMessageThread = threading.Thread(target=self.printMessage, daemon=True)
+        inputMessageThread = threading.Thread(target=self.inputMessage, daemon=True)
+
+        recieveMessageThread.start()
+        sendMessageThread.start()
+        printMessageThread.start()
+        inputMessageThread.start()
+
+        recieveMessageThread.join()
+        sendMessageThread.join()
+        printMessageThread.join()
+        inputMessageThread.join()
 
 
-def inputMessage():
-    while True:
-        msg = input()
-        msgWithHeader = addHeader(msg, encoding=True)
-        SEND_MESSAGE_QUEUE.put(msgWithHeader)
-
-
-def printMessage():
-    while True:
-        Message = RECIVE_MESSAGE_QUEUE.get()
-        print('[SERVER]:', Message)
-        time.sleep(1)
-
-
-def recieveMessage():
-    fullMessage = ''
-    while True:
-        msg = CLIENT.recv(43)
-        fullMessage += msg.decode(FORMAT)
-
-        while fullMessage != '':
-            msgLength = int(fullMessage[:HEADER_LENGTH])
-            chunkLength = HEADER_LENGTH + msgLength
-
-            if chunkLength > len(fullMessage):
-                break
-            else:
-                chunk = fullMessage[:chunkLength]
-                Message = chunk[HEADER_LENGTH:]
-                RECIVE_MESSAGE_QUEUE.put(Message)
-                fullMessage = fullMessage[chunkLength:]
-
-
-CLIENT = socket.socket()
-
-CLIENT.connect(ADDR)
-
-recieveMessageThread = threading.Thread(target=recieveMessage, daemon=True)
-sendMessageThread = threading.Thread(target=sendMessage, daemon=True)
-printMessageThread = threading.Thread(target=printMessage, daemon=True)
-inputMessageThread = threading.Thread(target=inputMessage, daemon=True)
-
-recieveMessageThread.start()
-sendMessageThread.start()
-printMessageThread.start()
-inputMessageThread.start()
-
-recieveMessageThread.join()
-sendMessageThread.join()
-printMessageThread.join()
-inputMessageThread.join()
+client = Client(ADDR)
+client.runThreads()

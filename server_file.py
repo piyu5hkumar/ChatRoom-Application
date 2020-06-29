@@ -76,16 +76,14 @@ class Client:
                                 self.userExists = True
                                 self.userName = message
                                 USERS[message] = (self.IPaddress, self.port)
-                                connectedMessageTuple = (
-                                    'connected', self.userName)
+                                connectedMessageTuple = ('connected', self.userName)
                                 MESSAGE_QUEUE.put(connectedMessageTuple)
                             else:
                                 userError = 'Username not available'
                                 userError = addHeader(userError, encoding=True)
                                 self.connection.send(userError)
                         else:
-                            userMessageTupple = (
-                                'message', self.userName, message)
+                            userMessageTupple = ('message', self.userName, message)
                             MESSAGE_QUEUE.put(userMessageTupple)
                         self.fullMessage = self.fullMessage[chunkLength:]
             else:
@@ -93,12 +91,10 @@ class Client:
                     del USERS[self.userName]
                     disconnectedMessageTuple = ('disconnected', self.userName)
                     MESSAGE_QUEUE.put(disconnectedMessageTuple)
-                    print(
-                        f'{self.userName}: {self.IPaddress} at PORT ({self.port}) has been disconnected')
+                    print(f'{self.userName}: {self.IPaddress} at PORT ({self.port}) has been disconnected')
 
                 else:
-                    print(
-                        f'{self.IPaddress} at PORT ({self.port}) has been disconnected')
+                    print(f'{self.IPaddress} at PORT ({self.port}) has been disconnected')
 
                 self.connection.close()
                 DISCONNECTED_CLIENTS.append(self)
@@ -121,8 +117,7 @@ class Server:
         if Server.__instance != None:
             raise Exception('A server is already there')
         else:
-            self.serverSocket = socket.socket(
-                socket.AF_INET, socket.SOCK_STREAM)
+            self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.serverSocket.bind(addr)
             self.serverSocket.listen(5)
             print(f"[SERVER]: is listening at port: {addr[1]}")
@@ -132,8 +127,7 @@ class Server:
         while True:
             connectionTupple = self.serverSocket.accept()
             client = Client(*connectionTupple)
-            print(
-                f"[CLIENT]: {client.IPaddress} is connected from port: {client.port}")
+            print(f"[CLIENT]: {client.IPaddress} is connected from port: {client.port}")
             CLIENTS.append(client)
 
     def removeDisconnectedClients(self):
@@ -177,12 +171,9 @@ class Server:
             time.sleep(1)
 
     def runThreads(self):
-        acceptConnectionsThread = threading.Thread(
-            target=self.acceptConnections, daemon=True)
-        recieveMessagesThread = threading.Thread(
-            target=self.recieveMessages, daemon=True)
-        sendMessagesThread = threading.Thread(
-            target=self.sendMessages, daemon=True)
+        acceptConnectionsThread = threading.Thread(target=self.acceptConnections, daemon=True)
+        recieveMessagesThread = threading.Thread(target=self.recieveMessages, daemon=True)
+        sendMessagesThread = threading.Thread(target=self.sendMessages, daemon=True)
 
         acceptConnectionsThread.start()
         recieveMessagesThread.start()
