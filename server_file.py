@@ -41,7 +41,8 @@ def addHeader(msg, format='utf-8', encoding=False):
 class Client:
     def __init__(self,connection, address):
         self.connection = connection
-        self.address = address
+        self.IPaddress = address[0]
+        self.port = address[1]
         self.userExists = False
         self.userName = None
         self.fullMessage = ''
@@ -72,7 +73,7 @@ class Client:
                         if self.userExists == False:
                             if message not in USERS:
                                 self.userExists = True
-                                USERS[message] = self.address
+                                USERS[message] = self.IPaddress, self.port
                                 self.userName = message
                             else:
                                 userError = 'Username not available'
@@ -83,7 +84,7 @@ class Client:
                             MESSAGE_QUEUE.put(userMessageTupple)
                         self.fullMessage = self.fullMessage[chunkLength:]
             else:
-                print(f'{self.userName}: {self.address[0]} at PORT ({self.address[1]}) has been disconnected')
+                print(f'{self.userName}: {self.IPaddress} at PORT ({self.port}) has been disconnected')
                 self.connection.close()
                 DISCONNECTED_CLIENTS.append(self)
 
@@ -122,7 +123,7 @@ class Server:
         while True:
             connectionTupple = self.serverSocket.accept()
             client = Client(*connectionTupple) 
-            print(f"[CLIENT]: {client.address[0]} is connected from port: {client.address[1]}")
+            print(f"[CLIENT]: {client.IPaddress} is connected from port: {client.port}")
             CLIENTS.append(client)
 
     def removeDisconnectedClients(self):
