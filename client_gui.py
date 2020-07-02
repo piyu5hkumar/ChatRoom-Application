@@ -3,7 +3,7 @@ from tkinter import *
 mainFrame  = Tk()
 mainFrame.title('ChatRoom')
 mainFrame.geometry("500x500")
-mainFrame.resizable(0, 0)
+mainFrame.resizable(0, 0) 
 windowIcon = PhotoImage(file = r'images/chatRoomIcon.png') 
 mainFrame.iconphoto(False, windowIcon)
 
