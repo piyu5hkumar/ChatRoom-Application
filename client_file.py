@@ -16,13 +16,11 @@ SEND_MESSAGE_QUEUE = queue.Queue()
 RECIVE_MESSAGE_QUEUE = queue.Queue()
 
 
-
-
-
 class Client:
     def __init__(self):
         self.clientSocket = socket.socket()
         self.state = 'disconnected'
+        self.username = ''
 
     def connectToServer(self, ADDR):
         self.clientSocket.connect(ADDR)
@@ -40,8 +38,8 @@ class Client:
 
         return msgWithHeader
 
-    def setWidgets(self, messagesText, enterChatRoomButton, usernameEntry, wrongUsername, checkUsernameButton):
-        self.messagesText = messagesText
+    def setWidgets(self, allMessagesText, enterChatRoomButton, usernameEntry, wrongUsername, checkUsernameButton):
+        self.allMessagesText = allMessagesText
         self.enterChatRoomButton = enterChatRoomButton
         self.usernameEntry = usernameEntry
         self.wrongUsername = wrongUsername
@@ -57,8 +55,6 @@ class Client:
                 break
 
     def messageToBeSent(self, msg):
-        # while True:
-        # msg = 'asdfff'
         msgWithHeader = self.addHeader(msg, encoding=True)
         SEND_MESSAGE_QUEUE.put(msgWithHeader)
         time.sleep(1)
@@ -71,19 +67,21 @@ class Client:
                 if 'unsuccesful' in Message:
                     self.state = 'disconnected'
                     usernameError = 'username not available'
-                    self.enterChatRoomButton.configure(state = DISABLED)
-                    self.usernameEntry.configure(fg = 'red')
-                    self.wrongUsername.configure(text = usernameError)
-                    self.wrongUsername.place(relx = 1.0, rely = 1.0, anchor = 'se')
+                    self.enterChatRoomButton.configure(state=DISABLED)
+                    self.usernameEntry.configure(fg='red')
+                    self.wrongUsername.configure(text=usernameError)
+                    self.wrongUsername.place(relx=1.0, rely=1.0, anchor='se')
                 else:
                     self.state = 'connected'
-                    self.enterChatRoomButton.configure(state = NORMAL)
-                    self.usernameEntry.configure(fg = 'black')
-                    self.wrongUsername.configure(text = '')
-                    self.checkUsernameButton.configure(state = DISABLED)
+                    self.enterChatRoomButton.configure(state=NORMAL)
+                    self.usernameEntry.configure(fg='black')
+                    self.wrongUsername.configure(text='')
+                    self.checkUsernameButton.configure(state=DISABLED)
             else:
-                self.messagesText.insert(INSERT, Message)
-            
+                self.allMessagesText.configure(state=NORMAL)
+                self.allMessagesText.insert(INSERT, Message + '\n')
+                self.allMessagesText.configure(state=DISABLED)
+
             time.sleep(1)
 
     def recieveMessage(self):
@@ -106,23 +104,12 @@ class Client:
                         fullMessage = fullMessage[chunkLength:]
             except:
                 break
-                
+
     def runThreads(self):
         recieveMessageThread = threading.Thread(target=self.recieveMessage, daemon=True)
         sendMessageThread = threading.Thread(target=self.sendMessage, daemon=True)
         printMessageThread = threading.Thread(target=self.printMessage, daemon=True)
-        # inputMessageThread = threading.Thread(target=self.messageToBeSent, daemon=True)
 
         recieveMessageThread.start()
         sendMessageThread.start()
         printMessageThread.start()
-        # inputMessageThread.start()
-
-        # recieveMessageThread.join()
-        # sendMessageThread.join()
-        # printMessageThread.join()
-        # inputMessageThread.join()
-
-
-# client = Client(ADDR)
-# client.runThreads()

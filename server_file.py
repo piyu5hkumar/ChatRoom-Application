@@ -106,8 +106,7 @@ class Client:
         try:
             self.connection.send(message)
         except ConnectionResetError as e:
-            print('this has occured')
-            print(e)
+            print('A client disconnected', e)
 
 class Server:
     __instance = None
@@ -172,7 +171,7 @@ class Server:
 
             self.removeDisconnectedClients()
             for client in CLIENTS:
-                if client.userName == messageTupple[1]:
+                if client.userName != messageTupple[1]:
                     client.outbox(msgWithHeader)
             time.sleep(1)
 
