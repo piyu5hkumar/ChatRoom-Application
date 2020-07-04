@@ -1,4 +1,22 @@
 from tkinter import *
+from client_file import Client, HOST, PORT, ADDR, FORMAT
+
+client = Client()
+client.connectToServer(ADDR)
+client.runThreads()
+
+
+def enter():
+	if client.state == 'connected':
+		subFrame.place_forget()
+		mainFrame.geometry('800x800')
+		mainFrame.resizable(0, 0) 
+
+		messagesText.place(relx = 0.5, anchor = 'n')
+
+	
+	# if msg != 'success':
+
 
 def checkUserName():
 	usernameEntered = usernameEntry.get().strip().lower()
@@ -9,18 +27,18 @@ def checkUserName():
 
 	if len(usernameEntered) < 4:
 		usernameError = 'username should be atleast 4 characters long'
-		enterRoomButton.configure(state = DISABLED)
+		enterChatRoomButton.configure(state = DISABLED)
 		usernameEntry.configure(fg = 'red')
 		isError = True
 	
 	elif usernameEntered.isalnum() == False:
 		usernameError = 'username must contain only alpha numeric characters'
-		enterRoomButton.configure(state = DISABLED)
+		enterChatRoomButton.configure(state = DISABLED)
 		usernameEntry.configure(fg = 'red')
 		isError = True
 			
 	else:
-		enterRoomButton.configure(state = NORMAL)
+		enterChatRoomButton.configure(state = NORMAL)
 		usernameEntry.configure(fg = 'black')
 		usernameError = None
 		isError = False
@@ -30,10 +48,12 @@ def checkUserName():
 		wrongUsername.place(relx = 1.0, rely = 1.0, anchor = 'se')
 	else:
 		wrongUsername.configure(text = '')
-	
+		client.setWidgets(messagesText, enterChatRoomButton, usernameEntry, wrongUsername, checkUsernameButton)
+		username = usernameEntry.get()
+		client.messageToBeSent(username)
 
 def resetEnterRoomButton(event):
-	enterRoomButton.configure(state = DISABLED)
+	enterChatRoomButton.configure(state = DISABLED)
 	usernameEntry.configure(fg = 'black')
 
 
@@ -63,9 +83,11 @@ usernameRequisite.grid(row = 1,column = 1, pady = (0, 20))
 checkUsernameButton = Button(subFrame, text = 'Check User Name', command = checkUserName)
 checkUsernameButton.grid(row = 2, column = 0, columnspan = 2, pady = (0, 20))
 
-enterRoomButton = Button(subFrame, text = 'Enter ChatRoom', state = DISABLED)
-enterRoomButton.grid(row = 3, column = 0, columnspan = 2, pady = (0, 20))
+enterChatRoomButton = Button(subFrame, text = 'Enter ChatRoom', state = DISABLED, command = enter)
+enterChatRoomButton.grid(row = 3, column = 0, columnspan = 2, pady = (0, 20))
 
 wrongUsername = Label(mainFrame, fg = 'red')
+
+messagesText = Text(mainFrame, relief=SUNKEN, width = 60, height = 35, bd = 10)	
 
 mainFrame.mainloop()

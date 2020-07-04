@@ -78,9 +78,12 @@ class Client:
                                 USERS[message] = (self.IPaddress, self.port)
                                 connectedMessageTuple = ('connected', self.userName)
                                 MESSAGE_QUEUE.put(connectedMessageTuple)
+                                userSuccess = 'admin > success'
+                                userSuccess = addHeader(userSuccess, encoding = True)
+                                self.connection.send(userSuccess)
                             else:
-                                userError = 'Username not available'
-                                userError = addHeader(userError, encoding=True)
+                                userError = 'admin > unsuccesful'
+                                userError = addHeader(userError, encoding = True)
                                 self.connection.send(userError)
                         else:
                             userMessageTupple = ('message', self.userName, message)
@@ -100,8 +103,11 @@ class Client:
                 DISCONNECTED_CLIENTS.append(self)
 
     def outbox(self, message):
-        self.connection.send(message)
-
+        try:
+            self.connection.send(message)
+        except ConnectionResetError as e:
+            print('this has occured')
+            print(e)
 
 class Server:
     __instance = None
@@ -166,7 +172,7 @@ class Server:
 
             self.removeDisconnectedClients()
             for client in CLIENTS:
-                if client.userName != messageTupple[1]:
+                if client.userName == messageTupple[1]:
                     client.outbox(msgWithHeader)
             time.sleep(1)
 
